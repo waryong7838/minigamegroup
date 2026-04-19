@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git *)",
+      "Bash(node *)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "shell": "bash",
+            "command": "node 'C:/Users/user/Desktop/CLAUDE/.claude/git-auto-commit.js'",
+            "statusMessage": "git 자동 커밋 & 푸시 중...",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}
