@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🃏 기억력 카드</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #0d0d1a;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      min-height: 100vh;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      color: #e2e8f0;
+      padding: 80px 16px 40px;
+    }
+    .home-btn {
+      position: fixed; top: 16px; left: 20px;
+      color: #94a3b8; text-decoration: none;
+      font-size: .88rem; font-weight: 600;
+      background: rgba(255,255,255,.06);
+      border: 1px solid rgba(255,255,255,.1);
+      padding: 7px 14px; border-radius: 8px;
+      transition: color .15s, background .15s;
+      z-index: 50;
+    }
+    .home-btn:hover { color: #e2e8f0; background: rgba(255,255,255,.1); }
+    h1 { font-size: 1.8rem; font-weight: 800; color: #a78bfa; margin-bottom: 14px; }
+    .status-bar {
+      display: flex; gap: 28px;
+      background: #16213e; padding: 10px 28px;
+      border-radius: 10px; margin-bottom: 18px;
+      font-size: 1rem;
+    }
+    .status-bar span { display: flex; align-items: center; gap: 6px; }
+    .status-bar strong { color: #e2e8f0; }
+
+    /* CARD GRID */
+    #board {
+      display: grid;
+      grid-template-columns: repeat(4, 84px);
+      gap: 12px;
+    }
+
+    /* CARD FLIP */
+    .card {
+      width: 84px; height: 84px;
+      perspective: 600px;
+      cursor: pointer;
+    }
+    .card-inner {
+      width: 100%; height: 100%;
+      position: relative;
+      transform-style: preserve-3d;
+      transition: transform .4s ease;
+      border-radius: 12px;
+    }
+    .card.flipped .card-inner,
+    .card.matched .card-inner {
+      transform: rotateY(180deg);
+    }
+    .card-front, .card-back {
+      position: absolute; inset: 0;
+      border-radius: 12px;
+      backface-visibility: hidden;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 2.6rem;
+    }
+    .card-front {
+      background: #0f3460;
+      box-shadow: inset 0 -3px 0 #061a3a;
+      color: #1e40af;
+      font-size: 1.4rem;
+    }
+    .card-front::after {
+      content: '?';
+      font-weight: 900; font-family: 'Segoe UI', sans-serif;
+      color: rgba(96,165,250,.4);
+    }
+    .card-back {
+      background: #1e2a4a;
+      border: 2px solid rgba(167,139,250,.25);
+      transform: rotateY(180deg);
+    }
+    .card.matched .card-back {
+      background: #1a3a2a;
+      border-color: rgba(74,222,128,.4);
+      box-shadow: 0 0 16px rgba(74,222,128,.2);
+    }
+    .card:hover:not(.matched) .card-inner { transform: rotateY(5deg); }
+    .card.flipped:hover .card-inner { transform: rotateY(180deg); }
+
+    .controls { margin-top: 18px; display: flex; gap: 10px; }
+    .btn {
+      padding: 9px 22px; border: none; border-radius: 8px;
+      background: #a78bfa; color: #111;
+      font-weight: 700; cursor: pointer; font-size: .9rem;
+      transition: opacity .15s;
+    }
+    .btn:hover { opacity: .85; }
+
+    /* OVERLAY */
+    #overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,.72);
+      align-items: center; justify-content: center; z-index: 10;
+    }
+    #overlay.show { display: flex; }
+    .obox {
+      background: #16213e; border-radius: 18px;
+      padding: 44px 56px; text-align: center;
+      box-shadow: 0 20px 60px rgba(0,0,0,.7);
+    }
+    .obox h2 { font-size: 2rem; margin-bottom: 10px; }
+    .obox p { color: #94a3b8; font-size: 1rem; margin-bottom: 26px; }
+    .obox .btn { font-size: 1rem; padding: 10px 28px; }
+
+    @media (max-width: 420px) {
+      #board { grid-template-columns: repeat(4, 72px); gap: 8px; }
+      .card { width: 72px; height: 72px; }
+      .card-front, .card-back { font-size: 2.1rem; }
+    }
+  </style>
+</head>
+<body>
+
+<a href="index.html" class="home-btn">← 홈</a>
+<h1>🃏 기억력 카드</h1>
+
+<div class="status-bar">
+  <span>🔄 시도 <strong id="moves">0</strong></span>
+  <span>✅ 짝 <strong id="pairs">0</strong> / 8</span>
+  <span>⏱ <strong id="timer">0</strong>초</span>
+</div>
+
+<div id="board"></div>
+
+<div class="controls">
+  <button class="btn" onclick="newGame()">🔀 새 게임</button>
+</div>
+
+<div id="overlay">
+  <div class="obox">
+    <h2>🎉 클리어!</h2>
+    <p id="ol-msg"></p>
+    <button class="btn" onclick="newGame(); document.getElementById('overlay').classList.remove('show')">다시 하기</button>
+  </div>
+</div>
+
+<script>
+const EMOJIS = ['🐶','🐱','🦊','🐻','🐼','🦁','🐯','🐨'];
+let flipped, matched, moves, pairs, timerInterval, elapsed, locked;
+
+function newGame() {
+  clearInterval(timerInterval);
+  flipped = []; matched = new Set();
+  moves = 0; pairs = 0; elapsed = 0; locked = false;
+  document.getElementById('moves').textContent = 0;
+  document.getElementById('pairs').textContent = 0;
+  document.getElementById('timer').textContent = 0;
+  document.getElementById('overlay').classList.remove('show');
+
+  const cards = [...EMOJIS, ...EMOJIS];
+  for (let i = cards.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [cards[i], cards[j]] = [cards[j], cards[i]];
+  }
+
+  const board = document.getElementById('board');
+  board.innerHTML = '';
+  cards.forEach((emoji, idx) => {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.dataset.emoji = emoji;
+    card.dataset.idx = idx;
+    card.innerHTML = `
+      <div class="card-inner">
+        <div class="card-front"></div>
+        <div class="card-back">${emoji}</div>
+      </div>`;
+    card.addEventListener('click', onCardClick);
+    board.appendChild(card);
+  });
+
+  timerInterval = setInterval(() => {
+    elapsed++;
+    document.getElementById('timer').textContent = elapsed;
+  }, 1000);
+}
+
+function onCardClick() {
+  if (locked) return;
+  if (this.classList.contains('flipped') || this.classList.contains('matched')) return;
+  this.classList.add('flipped');
+  flipped.push(this);
+
+  if (flipped.length === 2) {
+    moves++;
+    document.getElementById('moves').textContent = moves;
+    locked = true;
+    const [a, b] = flipped;
+    if (a.dataset.emoji === b.dataset.emoji) {
+      setTimeout(() => {
+        a.classList.add('matched'); b.classList.add('matched');
+        a.classList.remove('flipped'); b.classList.remove('flipped');
+        flipped = []; locked = false;
+        pairs++;
+        document.getElementById('pairs').textContent = pairs;
+        if (pairs === 8) {
+          clearInterval(timerInterval);
+          setTimeout(() => {
+            document.getElementById('ol-msg').textContent =
+              `${elapsed}초 · ${moves}번 시도 · ${getRating(moves)}`;
+            document.getElementById('overlay').classList.add('show');
+          }, 400);
+        }
+      }, 400);
+    } else {
+      setTimeout(() => {
+        a.classList.remove('flipped'); b.classList.remove('flipped');
+        flipped = []; locked = false;
+      }, 900);
+    }
+  }
+}
+
+function getRating(m) {
+  if (m <= 12) return '⭐⭐⭐ 완벽!';
+  if (m <= 18) return '⭐⭐ 훌륭해요!';
+  if (m <= 25) return '⭐ 잘했어요!';
+  return '다음엔 더 잘 할 수 있어요!';
+}
+
+newGame();
+</script>
+</body>
+</html>

@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🔢 2048</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #0d0d1a;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      min-height: 100vh;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      color: #e2e8f0;
+      padding: 80px 16px 40px;
+      user-select: none;
+    }
+    .home-btn {
+      position: fixed; top: 16px; left: 20px;
+      color: #94a3b8; text-decoration: none;
+      font-size: .88rem; font-weight: 600;
+      background: rgba(255,255,255,.06);
+      border: 1px solid rgba(255,255,255,.1);
+      padding: 7px 14px; border-radius: 8px;
+      transition: color .15s, background .15s;
+      z-index: 50;
+    }
+    .home-btn:hover { color: #e2e8f0; background: rgba(255,255,255,.1); }
+    h1 {
+      font-size: 2rem; font-weight: 900;
+      color: #fb923c; margin-bottom: 6px;
+    }
+    .tagline { color: #64748b; font-size: .88rem; margin-bottom: 16px; }
+    .top-bar {
+      display: flex; gap: 12px; margin-bottom: 14px; align-items: center;
+    }
+    .score-box {
+      background: #16213e; border-radius: 10px;
+      padding: 8px 20px; text-align: center;
+      min-width: 90px;
+    }
+    .score-box .label {
+      font-size: .65rem; letter-spacing: 1.5px;
+      text-transform: uppercase; color: #64748b;
+      font-weight: 700;
+    }
+    .score-box .val {
+      font-size: 1.3rem; font-weight: 800; color: #fb923c;
+    }
+    .btn {
+      padding: 9px 18px; border: none; border-radius: 8px;
+      background: #fb923c; color: #111;
+      font-weight: 700; cursor: pointer; font-size: .88rem;
+      transition: opacity .15s;
+    }
+    .btn:hover { opacity: .85; }
+
+    /* GRID */
+    #grid-wrap {
+      background: #1a1a2e;
+      border-radius: 12px;
+      padding: 10px;
+      box-shadow: 0 8px 40px rgba(0,0,0,.6);
+    }
+    #grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      width: 360px; height: 360px;
+    }
+    .cell {
+      border-radius: 8px;
+      background: rgba(255,255,255,.05);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.8rem; font-weight: 900;
+      transition: background .1s, transform .1s;
+    }
+    .cell[data-v="2"]    { background:#1e3a5f; color:#93c5fd; }
+    .cell[data-v="4"]    { background:#1e4a3f; color:#6ee7b7; }
+    .cell[data-v="8"]    { background:#7c2d12; color:#fed7aa; }
+    .cell[data-v="16"]   { background:#9a1919; color:#fca5a5; }
+    .cell[data-v="32"]   { background:#b91c1c; color:#fee2e2; }
+    .cell[data-v="64"]   { background:#c2410c; color:#ffedd5; }
+    .cell[data-v="128"]  { background:#a16207; color:#fef08a; font-size:1.4rem; }
+    .cell[data-v="256"]  { background:#b45309; color:#fef3c7; font-size:1.4rem; }
+    .cell[data-v="512"]  { background:#d97706; color:#fffbeb; font-size:1.4rem; }
+    .cell[data-v="1024"] { background:#ca8a04; color:#fff; font-size:1.15rem; }
+    .cell[data-v="2048"] { background:linear-gradient(135deg,#f59e0b,#ef4444); color:#fff; font-size:1.15rem; box-shadow:0 0 24px rgba(245,158,11,.5); }
+    .cell.pop { animation: pop .12s ease; }
+    @keyframes pop { 0%{transform:scale(0.8)} 60%{transform:scale(1.1)} 100%{transform:scale(1)} }
+
+    .hint { margin-top: 12px; color: #475569; font-size: .82rem; }
+
+    /* OVERLAY */
+    #overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,.72);
+      align-items: center; justify-content: center; z-index: 10;
+    }
+    #overlay.show { display: flex; }
+    .obox {
+      background: #16213e; border-radius: 18px;
+      padding: 44px 56px; text-align: center;
+      box-shadow: 0 20px 60px rgba(0,0,0,.7);
+    }
+    .obox h2 { font-size: 2.2rem; margin-bottom: 10px; }
+    .obox p { color: #94a3b8; font-size: 1rem; margin-bottom: 26px; }
+    .obox .btn { font-size: 1rem; padding: 10px 28px; }
+  </style>
+</head>
+<body>
+
+<a href="index.html" class="home-btn">← 홈</a>
+<h1>🔢 2048</h1>
+<p class="tagline">같은 숫자를 합쳐 2048을 만드세요!</p>
+
+<div class="top-bar">
+  <div class="score-box">
+    <div class="label">점수</div>
+    <div class="val" id="score">0</div>
+  </div>
+  <div class="score-box">
+    <div class="label">최고</div>
+    <div class="val" id="best">0</div>
+  </div>
+  <button class="btn" onclick="newGame()">새 게임</button>
+</div>
+
+<div id="grid-wrap">
+  <div id="grid"></div>
+</div>
+<p class="hint">방향키로 타일을 밀어 같은 숫자를 합치세요</p>
+
+<div id="overlay">
+  <div class="obox">
+    <h2 id="ol-title"></h2>
+    <p id="ol-msg"></p>
+    <button class="btn" onclick="newGame(); document.getElementById('overlay').classList.remove('show')">다시 하기</button>
+  </div>
+</div>
+
+<script>
+let grid, score, best, won;
+best = +localStorage.getItem('2048-best') || 0;
+document.getElementById('best').textContent = best;
+
+function newGame() {
+  grid = Array.from({length:4}, () => Array(4).fill(0));
+  score = 0;
+  won = false;
+  document.getElementById('score').textContent = 0;
+  document.getElementById('overlay').classList.remove('show');
+  addTile(); addTile();
+  render();
+}
+
+function addTile() {
+  const empty = [];
+  for (let r = 0; r < 4; r++)
+    for (let c = 0; c < 4; c++)
+      if (!grid[r][c]) empty.push({r, c});
+  if (!empty.length) return;
+  const {r, c} = empty[Math.floor(Math.random() * empty.length)];
+  grid[r][c] = Math.random() < 0.9 ? 2 : 4;
+}
+
+function slideRow(row) {
+  let r = row.filter(v => v);
+  for (let i = 0; i < r.length - 1; i++) {
+    if (r[i] === r[i+1]) {
+      r[i] *= 2;
+      score += r[i];
+      r.splice(i+1, 1);
+      i++;
+    }
+  }
+  while (r.length < 4) r.push(0);
+  return r;
+}
+
+function transpose() {
+  return grid[0].map((_, c) => grid.map(r => r[c]));
+}
+
+function move(dir) {
+  let moved = false;
+  let prev = grid.map(r => [...r]);
+
+  if (dir === 'left') {
+    grid = grid.map(r => slideRow(r));
+  } else if (dir === 'right') {
+    grid = grid.map(r => slideRow([...r].reverse()).reverse());
+  } else if (dir === 'up') {
+    grid = transpose().map(r => slideRow(r));
+    grid = grid[0].map((_, c) => grid.map(r => r[c]));
+  } else if (dir === 'down') {
+    grid = transpose().map(r => slideRow([...r].reverse()).reverse());
+    grid = grid[0].map((_, c) => grid.map(r => r[c]));
+  }
+
+  for (let r = 0; r < 4; r++)
+    for (let c = 0; c < 4; c++)
+      if (grid[r][c] !== prev[r][c]) moved = true;
+
+  if (moved) {
+    addTile();
+    if (score > best) {
+      best = score;
+      localStorage.setItem('2048-best', best);
+      document.getElementById('best').textContent = best;
+    }
+    document.getElementById('score').textContent = score;
+    render();
+    if (!won && grid.some(row => row.includes(2048))) {
+      won = true;
+      setTimeout(() => {
+        document.getElementById('ol-title').textContent = '🎉 2048 달성!';
+        document.getElementById('ol-msg').textContent = `점수: ${score}점 · 계속 도전하거나 새 게임을 시작하세요!`;
+        document.getElementById('overlay').classList.add('show');
+      }, 200);
+    } else if (!canMove()) {
+      setTimeout(() => {
+        document.getElementById('ol-title').textContent = '😔 게임 오버';
+        document.getElementById('ol-msg').textContent = `최종 점수: ${score}점`;
+        document.getElementById('overlay').classList.add('show');
+      }, 200);
+    }
+  }
+}
+
+function canMove() {
+  for (let r = 0; r < 4; r++)
+    for (let c = 0; c < 4; c++) {
+      if (!grid[r][c]) return true;
+      if (c < 3 && grid[r][c] === grid[r][c+1]) return true;
+      if (r < 3 && grid[r][c] === grid[r+1][c]) return true;
+    }
+  return false;
+}
+
+function render() {
+  const el = document.getElementById('grid');
+  el.innerHTML = '';
+  for (let r = 0; r < 4; r++) {
+    for (let c = 0; c < 4; c++) {
+      const v = grid[r][c];
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      if (v) {
+        cell.dataset.v = v;
+        cell.textContent = v;
+        cell.classList.add('pop');
+      }
+      el.appendChild(cell);
+    }
+  }
+}
+
+document.addEventListener('keydown', e => {
+  const map = { ArrowLeft:'left', ArrowRight:'right', ArrowUp:'up', ArrowDown:'down' };
+  if (map[e.key]) { e.preventDefault(); move(map[e.key]); }
+});
+
+// Touch/swipe support
+let tx, ty;
+document.addEventListener('touchstart', e => { tx = e.touches[0].clientX; ty = e.touches[0].clientY; }, {passive:true});
+document.addEventListener('touchend', e => {
+  const dx = e.changedTouches[0].clientX - tx;
+  const dy = e.changedTouches[0].clientY - ty;
+  if (Math.abs(dx) < 20 && Math.abs(dy) < 20) return;
+  if (Math.abs(dx) > Math.abs(dy)) move(dx > 0 ? 'right' : 'left');
+  else move(dy > 0 ? 'down' : 'up');
+}, {passive:true});
+
+newGame();
+</script>
+</body>
+</html>

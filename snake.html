@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🐍 스네이크</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #0d0d1a;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      min-height: 100vh;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      color: #e2e8f0;
+      padding: 80px 16px 40px;
+    }
+    .home-btn {
+      position: fixed; top: 16px; left: 20px;
+      color: #94a3b8; text-decoration: none;
+      font-size: .88rem; font-weight: 600;
+      background: rgba(255,255,255,.06);
+      border: 1px solid rgba(255,255,255,.1);
+      padding: 7px 14px; border-radius: 8px;
+      transition: color .15s, background .15s;
+      z-index: 50;
+    }
+    .home-btn:hover { color: #e2e8f0; background: rgba(255,255,255,.1); }
+    h1 {
+      font-size: 1.8rem; font-weight: 800;
+      color: #4ade80; margin-bottom: 14px;
+    }
+    .status-bar {
+      display: flex; gap: 28px;
+      background: #16213e; padding: 10px 28px;
+      border-radius: 10px; margin-bottom: 14px;
+      font-size: 1rem;
+    }
+    .status-bar span { display: flex; align-items: center; gap: 6px; }
+    .status-bar strong { color: #e2e8f0; }
+    canvas {
+      background: #16213e;
+      border-radius: 14px;
+      box-shadow: 0 8px 40px rgba(0,0,0,.6);
+      display: block; max-width: 100%;
+    }
+    .controls { margin-top: 16px; display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+    .btn {
+      padding: 9px 22px; border: none; border-radius: 8px;
+      background: #4ade80; color: #111;
+      font-weight: 700; cursor: pointer; font-size: .9rem;
+      transition: opacity .15s;
+    }
+    .btn:hover { opacity: .85; }
+    .hint { margin-top: 10px; color: #475569; font-size: .82rem; text-align: center; }
+    #overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,.72);
+      align-items: center; justify-content: center; z-index: 10;
+    }
+    #overlay.show { display: flex; }
+    .obox {
+      background: #16213e; border-radius: 18px;
+      padding: 44px 56px; text-align: center;
+      box-shadow: 0 20px 60px rgba(0,0,0,.7);
+    }
+    .obox h2 { font-size: 2rem; margin-bottom: 10px; }
+    .obox p { color: #94a3b8; font-size: 1rem; margin-bottom: 26px; }
+    .obox .btn { font-size: 1rem; padding: 10px 28px; }
+  </style>
+</head>
+<body>
+
+<a href="index.html" class="home-btn">← 홈</a>
+<h1>🐍 스네이크</h1>
+
+<div class="status-bar">
+  <span>점수 <strong id="score">0</strong></span>
+  <span>최고 <strong id="best">0</strong></span>
+  <span id="pause-label" style="color:#facc15;display:none">⏸ 일시정지</span>
+</div>
+
+<canvas id="canvas" width="420" height="420"></canvas>
+
+<div class="controls">
+  <button class="btn" onclick="startGame()">▶ 시작 / 재시작</button>
+</div>
+<p class="hint">방향키 또는 WASD 조종 &nbsp;·&nbsp; 스페이스: 일시정지</p>
+
+<div id="overlay">
+  <div class="obox">
+    <h2 id="ol-title"></h2>
+    <p id="ol-msg"></p>
+    <button class="btn" onclick="startGame()">다시 하기</button>
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const CELL = 21, COLS = 20, ROWS = 20;
+
+let snake, dir, nextDir, food, score, best, running, paused, interval, speed;
+
+best = +localStorage.getItem('snake-best') || 0;
+document.getElementById('best').textContent = best;
+
+function startGame() {
+  clearInterval(interval);
+  snake = [{x:10,y:10},{x:9,y:10},{x:8,y:10}];
+  dir = {x:1,y:0};
+  nextDir = {x:1,y:0};
+  score = 0;
+  speed = 150;
+  running = true;
+  paused = false;
+  document.getElementById('score').textContent = 0;
+  document.getElementById('pause-label').style.display = 'none';
+  document.getElementById('overlay').classList.remove('show');
+  spawnFood();
+  interval = setInterval(tick, speed);
+  draw();
+}
+
+function spawnFood() {
+  const used = new Set(snake.map(s => s.x + ',' + s.y));
+  let x, y;
+  do { x = Math.floor(Math.random() * COLS); y = Math.floor(Math.random() * ROWS); }
+  while (used.has(x + ',' + y));
+  food = {x, y};
+}
+
+function tick() {
+  if (!running || paused) return;
+  dir = {x: nextDir.x, y: nextDir.y};
+  const head = {x: snake[0].x + dir.x, y: snake[0].y + dir.y};
+
+  if (head.x < 0 || head.x >= COLS || head.y < 0 || head.y >= ROWS) { endGame(); return; }
+  if (snake.some(s => s.x === head.x && s.y === head.y)) { endGame(); return; }
+
+  snake.unshift(head);
+  if (head.x === food.x && head.y === food.y) {
+    score++;
+    document.getElementById('score').textContent = score;
+    if (score > best) {
+      best = score;
+      localStorage.setItem('snake-best', best);
+      document.getElementById('best').textContent = best;
+    }
+    spawnFood();
+    if (score % 5 === 0) {
+      speed = Math.max(75, speed - 8);
+      clearInterval(interval);
+      interval = setInterval(tick, speed);
+    }
+  } else {
+    snake.pop();
+  }
+  draw();
+}
+
+function endGame() {
+  running = false;
+  clearInterval(interval);
+  draw();
+  document.getElementById('ol-title').textContent = '💀 게임 오버';
+  document.getElementById('ol-msg').textContent = `점수: ${score}점 · 길이: ${snake.length}칸`;
+  document.getElementById('overlay').classList.add('show');
+}
+
+function draw() {
+  const W = canvas.width, H = canvas.height;
+  ctx.fillStyle = '#16213e';
+  ctx.fillRect(0, 0, W, H);
+
+  // Subtle grid
+  ctx.strokeStyle = 'rgba(255,255,255,.03)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= COLS; i++) {
+    ctx.beginPath(); ctx.moveTo(i*CELL, 0); ctx.lineTo(i*CELL, H); ctx.stroke();
+  }
+  for (let j = 0; j <= ROWS; j++) {
+    ctx.beginPath(); ctx.moveTo(0, j*CELL); ctx.lineTo(W, j*CELL); ctx.stroke();
+  }
+
+  if (!running && snake == null) return;
+
+  // Food (pulsing circle)
+  if (food) {
+    ctx.fillStyle = '#f87171';
+    ctx.shadowColor = '#f87171';
+    ctx.shadowBlur = 10;
+    ctx.beginPath();
+    ctx.arc(food.x*CELL + CELL/2, food.y*CELL + CELL/2, CELL/2 - 3, 0, Math.PI*2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+  }
+
+  // Snake body
+  snake.forEach((s, i) => {
+    const isHead = i === 0;
+    const t = i / snake.length;
+    if (isHead) {
+      ctx.fillStyle = '#22c55e';
+      ctx.shadowColor = '#4ade80';
+      ctx.shadowBlur = 8;
+    } else {
+      ctx.fillStyle = `hsl(142, ${65 - t*25}%, ${50 - t*18}%)`;
+      ctx.shadowBlur = 0;
+    }
+    const pad = isHead ? 1 : 2;
+    ctx.beginPath();
+    ctx.roundRect(s.x*CELL + pad, s.y*CELL + pad, CELL - pad*2, CELL - pad*2, isHead ? 5 : 3);
+    ctx.fill();
+  });
+  ctx.shadowBlur = 0;
+
+  // Head eyes
+  if (snake.length > 0) {
+    const h = snake[0];
+    ctx.fillStyle = '#0d0d1a';
+    const ex = h.x*CELL, ey = h.y*CELL;
+    const eyeOffset = dir.y !== 0 ? 4 : 2;
+    // eye positions rotate with direction
+    let eyes = [];
+    if (dir.x === 1)  eyes = [{x:ex+CELL-5,y:ey+4},{x:ex+CELL-5,y:ey+CELL-7}];
+    if (dir.x === -1) eyes = [{x:ex+3,y:ey+4},{x:ex+3,y:ey+CELL-7}];
+    if (dir.y === -1) eyes = [{x:ex+4,y:ey+3},{x:ex+CELL-7,y:ey+3}];
+    if (dir.y === 1)  eyes = [{x:ex+4,y:ey+CELL-5},{x:ex+CELL-7,y:ey+CELL-5}];
+    eyes.forEach(e => {
+      ctx.beginPath();
+      ctx.arc(e.x+2, e.y+2, 2.5, 0, Math.PI*2);
+      ctx.fill();
+    });
+  }
+}
+
+document.addEventListener('keydown', e => {
+  const map = {
+    ArrowUp:{x:0,y:-1}, ArrowDown:{x:0,y:1},
+    ArrowLeft:{x:-1,y:0}, ArrowRight:{x:1,y:0},
+    w:{x:0,y:-1}, s:{x:0,y:1}, a:{x:-1,y:0}, d:{x:1,y:0},
+  };
+  if (e.key === ' ') {
+    if (!running) return;
+    paused = !paused;
+    document.getElementById('pause-label').style.display = paused ? 'inline' : 'none';
+    return;
+  }
+  const nd = map[e.key];
+  if (nd) {
+    if (!(nd.x === -dir.x && nd.y === -dir.y)) nextDir = nd;
+    if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)) e.preventDefault();
+  }
+});
+
+// Initial screen
+ctx.fillStyle = '#16213e';
+ctx.fillRect(0, 0, canvas.width, canvas.height);
+ctx.fillStyle = '#4ade80';
+ctx.font = '700 1rem Segoe UI, sans-serif';
+ctx.textAlign = 'center';
+ctx.fillText('▶ 시작 버튼을 눌러 게임을 시작하세요', canvas.width/2, canvas.height/2);
+</script>
+</body>
+</html>
